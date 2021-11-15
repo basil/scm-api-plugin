@@ -12,31 +12,36 @@
  * the License.
  */
 
-package com.google.thirdparty.publicsuffix;
+package jenkins.scm.impl.domain;
 
-import com.google.common.annotations.GwtCompatible;
-import com.google.common.base.Joiner;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Queues;
+import java.util.ArrayDeque;
+import java.util.Collections;
 import java.util.Deque;
+import java.util.HashMap;
+import java.util.Map;
+import org.kohsuke.accmod.Restricted;
+import org.kohsuke.accmod.restrictions.NoExternalUse;
 
-/** Parser for a map of reversed domain names stored as a serialized radix tree. */
-@GwtCompatible
+/**
+ * Parser for a map of reversed domain names stored as a serialized radix tree.
+ *
+ * <p>Adapted from Guava 31.0.1. Usage only internal to this plugin. Marked as restricted to prevent
+ * any further usages. This should be switched to upstream when it is no longer beta.
+ */
+@Restricted(NoExternalUse.class)
 final class TrieParser {
-  private static final Joiner PREFIX_JOINER = Joiner.on("");
-
   /**
    * Parses a serialized trie representation of a map of reversed public suffixes into an immutable
    * map of public suffixes.
    */
-  static ImmutableMap<String, PublicSuffixType> parseTrie(CharSequence encoded) {
-    ImmutableMap.Builder<String, PublicSuffixType> builder = ImmutableMap.builder();
+  static Map<String, PublicSuffixType> parseTrie(CharSequence encoded) {
+    Map<String, PublicSuffixType> builder = new HashMap<>();
     int encodedLen = encoded.length();
     int idx = 0;
     while (idx < encodedLen) {
-      idx += doParseTrieToBuilder(Queues.<CharSequence>newArrayDeque(), encoded, idx, builder);
+      idx += doParseTrieToBuilder(new ArrayDeque<>(), encoded, idx, builder);
     }
-    return builder.build();
+    return Collections.unmodifiableMap(builder);
   }
 
   /**
@@ -53,7 +58,7 @@ final class TrieParser {
       Deque<CharSequence> stack,
       CharSequence encoded,
       int start,
-      ImmutableMap.Builder<String, PublicSuffixType> builder) {
+      Map<String, PublicSuffixType> builder) {
 
     int encodedLen = encoded.length();
     int idx = start;
@@ -74,7 +79,7 @@ final class TrieParser {
       // '?' represents a leaf node, which represents a REGISTRY entry in map.
       // ':' represents an interior node that represents a private entry in the map
       // ',' represents a leaf node, which represents a private entry in the map.
-      String domain = PREFIX_JOINER.join(stack);
+      String domain = String.join("", stack);
       if (domain.length() > 0) {
         builder.put(domain, PublicSuffixType.fromCode(c));
       }

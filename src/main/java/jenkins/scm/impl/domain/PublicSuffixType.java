@@ -12,21 +12,21 @@
  * the License.
  */
 
-package com.google.thirdparty.publicsuffix;
+package jenkins.scm.impl.domain;
 
-import com.google.common.annotations.Beta;
-import com.google.common.annotations.GwtCompatible;
+import org.kohsuke.accmod.Restricted;
+import org.kohsuke.accmod.restrictions.NoExternalUse;
 
 /**
  * <b>Do not use this class directly. For access to public-suffix information, use {@link
- * com.google.common.net.InternetDomainName}.</b>
+ * InternetDomainName}.</b>
  *
  * <p>Specifies the type of a top-level domain definition.
  *
- * @since 23.3
+ * <p>Adapted from Guava 31.0.1. Usage only internal to this plugin. Marked as restricted to prevent
+ * any further usages. This should be switched to upstream when it is no longer beta.
  */
-@Beta
-@GwtCompatible
+@Restricted(NoExternalUse.class)
 public enum PublicSuffixType {
 
   /** Public suffix that is provided by a private company, e.g. "blogspot.com" */

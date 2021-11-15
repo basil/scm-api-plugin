@@ -12,22 +12,23 @@
  * the License.
  */
 
-package com.google.common.base;
+package jenkins.scm.impl.domain;
 
-import com.google.common.annotations.GwtIncompatible;
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.CharMatcher.NamedFastMatcher;
 import java.util.BitSet;
+import org.kohsuke.accmod.Restricted;
+import org.kohsuke.accmod.restrictions.NoExternalUse;
 
 /**
  * An immutable version of CharMatcher for smallish sets of characters that uses a hash table with
  * linear probing to check for matches.
  *
+ * <p>Adapted from Guava 31.0.1. Usage only internal to this plugin. Marked as restricted to prevent
+ * any further usages. This should be switched to upstream when it is no longer beta.
+ *
  * @author Christopher Swenson
  */
-@GwtIncompatible // no precomputation is done in GWT
-@ElementTypesAreNonnullByDefault
-final class SmallCharMatcher extends NamedFastMatcher {
+@Restricted(NoExternalUse.class)
+final class SmallCharMatcher extends CharMatcher.NamedFastMatcher {
   static final int MAX_SIZE = 1023;
   private final char[] table;
   private final boolean containsZero;
@@ -70,7 +71,6 @@ final class SmallCharMatcher extends NamedFastMatcher {
    * with linear probing in its implementation. The returned size is the smallest power of two that
    * can hold setSize elements with the desired load factor.
    */
-  @VisibleForTesting
   static int chooseTableSize(int setSize) {
     if (setSize == 1) {
       return 2;

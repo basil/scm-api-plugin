@@ -12,25 +12,17 @@
  * the License.
  */
 
-package com.google.common.net;
+package jenkins.scm.impl.domain;
 
-import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.base.Preconditions.checkNotNull;
-import static com.google.common.base.Preconditions.checkState;
-
-import com.google.common.annotations.Beta;
-import com.google.common.annotations.GwtCompatible;
-import com.google.common.base.Ascii;
-import com.google.common.base.CharMatcher;
-import com.google.common.base.Joiner;
-import com.google.common.base.Optional;
-import com.google.common.base.Splitter;
-import com.google.common.collect.ImmutableList;
-import com.google.errorprone.annotations.Immutable;
-import com.google.thirdparty.publicsuffix.PublicSuffixPatterns;
-import com.google.thirdparty.publicsuffix.PublicSuffixType;
+import edu.umd.cs.findbugs.annotations.CheckForNull;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
-import javax.annotation.CheckForNull;
+import java.util.Objects;
+import java.util.Optional;
+import org.kohsuke.accmod.Restricted;
+import org.kohsuke.accmod.restrictions.NoExternalUse;
 
 /**
  * An immutable well-formed internet domain name, such as {@code com} or {@code foo.co.uk}. Only
@@ -68,18 +60,15 @@ import javax.annotation.CheckForNull;
  * href="http://en.wikipedia.org/wiki/Internationalized_domain_name">IDNA Punycode-encoded</a>
  * versions.
  *
+ * <p>Adapted from Guava 31.0.1. Usage only internal to this plugin. Marked as restricted to prevent
+ * any further usages. This should be switched to upstream when it is no longer beta.
+ *
  * @author Catherine Berry
- * @since 5.0
  */
-@Beta
-@GwtCompatible(emulated = true)
-@Immutable
-@ElementTypesAreNonnullByDefault
+@Restricted(NoExternalUse.class)
 public final class InternetDomainName {
 
   private static final CharMatcher DOTS_MATCHER = CharMatcher.anyOf(".\u3002\uFF0E\uFF61");
-  private static final Splitter DOT_SPLITTER = Splitter.on('.');
-  private static final Joiner DOT_JOINER = Joiner.on('.');
 
   /**
    * Value of {@link #publicSuffixIndex} or {@link #registrySuffixIndex} which indicates that no
@@ -111,7 +100,7 @@ public final class InternetDomainName {
   private final String name;
 
   /** The parts of the domain name, converted to lower case. */
-  private final ImmutableList<String> parts;
+  private final List<String> parts;
 
   /**
    * The index in the {@link #parts()} list at which the public suffix begins. For example, for the
@@ -142,14 +131,21 @@ public final class InternetDomainName {
       name = name.substring(0, name.length() - 1);
     }
 
-    checkArgument(name.length() <= MAX_LENGTH, "Domain name too long: '%s':", name);
+    if (name.length() > MAX_LENGTH) {
+      throw new IllegalArgumentException(String.format("Domain name too long: '%s':", name));
+    }
     this.name = name;
 
-    this.parts = ImmutableList.copyOf(DOT_SPLITTER.split(name));
-    checkArgument(parts.size() <= MAX_PARTS, "Domain has too many parts: '%s'", name);
-    checkArgument(validateSyntax(parts), "Not a valid domain name: '%s'", name);
+    this.parts =
+        Collections.unmodifiableList(new ArrayList<>(Arrays.asList(name.split("\\.", -1))));
+    if (parts.size() > MAX_PARTS) {
+      throw new IllegalArgumentException(String.format("Domain has too many parts: '%s'", name));
+    }
+    if (!validateSyntax(parts)) {
+      throw new IllegalArgumentException(String.format("Not a valid domain name: '%s'", name));
+    }
 
-    this.publicSuffixIndex = findSuffixOfType(Optional.<PublicSuffixType>absent());
+    this.publicSuffixIndex = findSuffixOfType(Optional.empty());
     this.registrySuffixIndex = findSuffixOfType(Optional.of(PublicSuffixType.REGISTRY));
   }
 
@@ -166,10 +162,10 @@ public final class InternetDomainName {
     final int partsSize = parts.size();
 
     for (int i = 0; i < partsSize; i++) {
-      String ancestorName = DOT_JOINER.join(parts.subList(i, partsSize));
+      String ancestorName = String.join(".", parts.subList(i, partsSize));
 
       if (matchesType(
-          desiredType, Optional.fromNullable(PublicSuffixPatterns.EXACT.get(ancestorName)))) {
+          desiredType, Optional.ofNullable(PublicSuffixPatterns.EXACT.get(ancestorName)))) {
         return i;
       }
 
@@ -204,10 +200,9 @@ public final class InternetDomainName {
    * @param domain A domain name (not IP address)
    * @throws IllegalArgumentException if {@code domain} is not syntactically valid according to
    *     {@link #isValid}
-   * @since 10.0 (previously named {@code fromLenient})
    */
   public static InternetDomainName from(String domain) {
-    return new InternetDomainName(checkNotNull(domain));
+    return new InternetDomainName(Objects.requireNonNull(domain));
   }
 
   /**
@@ -304,7 +299,7 @@ public final class InternetDomainName {
    * example, for the domain name {@code mail.google.com}, this method returns the list {@code
    * ["mail", "google", "com"]}.
    */
-  public ImmutableList<String> parts() {
+  public List<String> parts() {
     return parts;
   }
 
@@ -326,7 +321,6 @@ public final class InternetDomainName {
    * href="https://github.com/google/guava/wiki/InternetDomainNameExplained">this article</a>.
    *
    * @return {@code true} if this domain name appears exactly on the public suffix list
-   * @since 6.0
    */
   public boolean isPublicSuffix() {
     return publicSuffixIndex == 0;
@@ -341,8 +335,6 @@ public final class InternetDomainName {
    *
    * <p>Note that this method is equivalent to {@link #hasRegistrySuffix()} because all registry
    * suffixes are public suffixes <i>and</i> all public suffixes have registry suffixes.
-   *
-   * @since 6.0
    */
   public boolean hasPublicSuffix() {
     return publicSuffixIndex != NO_SUFFIX_FOUND;
@@ -351,8 +343,6 @@ public final class InternetDomainName {
   /**
    * Returns the {@linkplain #isPublicSuffix() public suffix} portion of the domain name, or {@code
    * null} if no public suffix is present.
-   *
-   * @since 6.0
    */
   @CheckForNull
   public InternetDomainName publicSuffix() {
@@ -368,8 +358,6 @@ public final class InternetDomainName {
    * <p>This method can be used to determine whether it will probably be possible to set cookies on
    * the domain, though even that depends on individual browsers' implementations of cookie
    * controls. See <a href="http://www.ietf.org/rfc/rfc2109.txt">RFC 2109</a> for details.
-   *
-   * @since 6.0
    */
   public boolean isUnderPublicSuffix() {
     return publicSuffixIndex > 0;
@@ -384,8 +372,6 @@ public final class InternetDomainName {
    * <p>This method can be used to determine whether a domain is probably the highest level for
    * which cookies may be set, though even that depends on individual browsers' implementations of
    * cookie controls. See <a href="http://www.ietf.org/rfc/rfc2109.txt">RFC 2109</a> for details.
-   *
-   * @since 6.0
    */
   public boolean isTopPrivateDomain() {
     return publicSuffixIndex == 1;
@@ -405,13 +391,14 @@ public final class InternetDomainName {
    * controls.
    *
    * @throws IllegalStateException if this domain does not end with a public suffix
-   * @since 6.0
    */
   public InternetDomainName topPrivateDomain() {
     if (isTopPrivateDomain()) {
       return this;
     }
-    checkState(isUnderPublicSuffix(), "Not under a public suffix: %s", name);
+    if (!isUnderPublicSuffix()) {
+      throw new IllegalStateException(String.format("Not under a public suffix: %s", name));
+    }
     return ancestor(publicSuffixIndex - 1);
   }
 
@@ -436,7 +423,6 @@ public final class InternetDomainName {
    *
    * @return {@code true} if this domain name appears exactly on the public suffix list as part of
    *     the registry suffix section (labelled "ICANN").
-   * @since 23.3
    */
   public boolean isRegistrySuffix() {
     return registrySuffixIndex == 0;
@@ -450,8 +436,6 @@ public final class InternetDomainName {
    *
    * <p>Note that this method is equivalent to {@link #hasPublicSuffix()} because all registry
    * suffixes are public suffixes <i>and</i> all public suffixes have registry suffixes.
-   *
-   * @since 23.3
    */
   public boolean hasRegistrySuffix() {
     return registrySuffixIndex != NO_SUFFIX_FOUND;
@@ -460,8 +444,6 @@ public final class InternetDomainName {
   /**
    * Returns the {@linkplain #isRegistrySuffix() registry suffix} portion of the domain name, or
    * {@code null} if no registry suffix is present.
-   *
-   * @since 23.3
    */
   @CheckForNull
   public InternetDomainName registrySuffix() {
@@ -473,8 +455,6 @@ public final class InternetDomainName {
    * while not being a registry suffix itself. For example, returns {@code true} for {@code
    * www.google.com}, {@code foo.co.uk} and {@code blogspot.com}, but not for {@code com}, {@code
    * co.uk}, or {@code google.invalid}.
-   *
-   * @since 23.3
    */
   public boolean isUnderRegistrySuffix() {
     return registrySuffixIndex > 0;
@@ -488,8 +468,6 @@ public final class InternetDomainName {
    *
    * <p><b>Warning:</b> This method should not be used to determine the probable highest level
    * parent domain for which cookies may be set. Use {@link #topPrivateDomain()} for that purpose.
-   *
-   * @since 23.3
    */
   public boolean isTopDomainUnderRegistrySuffix() {
     return registrySuffixIndex == 1;
@@ -508,13 +486,14 @@ public final class InternetDomainName {
    * highest level for which cookies may be set. Use {@link #isTopPrivateDomain()} for that purpose.
    *
    * @throws IllegalStateException if this domain does not end with a registry suffix
-   * @since 23.3
    */
   public InternetDomainName topDomainUnderRegistrySuffix() {
     if (isTopDomainUnderRegistrySuffix()) {
       return this;
     }
-    checkState(isUnderRegistrySuffix(), "Not under a registry suffix: %s", name);
+    if (!isUnderRegistrySuffix()) {
+      throw new IllegalStateException(String.format("Not under a registry suffix: %s", name));
+    }
     return ancestor(registrySuffixIndex - 1);
   }
 
@@ -531,7 +510,9 @@ public final class InternetDomainName {
    * @throws IllegalStateException if the domain has no parent, as determined by {@link #hasParent}
    */
   public InternetDomainName parent() {
-    checkState(hasParent(), "Domain '%s' has no parent", name);
+    if (!hasParent()) {
+      throw new IllegalStateException(String.format("Domain '%s' has no parent", name));
+    }
     return ancestor(1);
   }
 
@@ -543,7 +524,7 @@ public final class InternetDomainName {
    * <p>TODO: Reasonable candidate for addition to public API.
    */
   private InternetDomainName ancestor(int levels) {
-    return from(DOT_JOINER.join(parts.subList(levels, parts.size())));
+    return from(String.join(".", parts.subList(levels, parts.size())));
   }
 
   /**
@@ -556,7 +537,7 @@ public final class InternetDomainName {
    * @throws IllegalArgumentException if the resulting name is not valid
    */
   public InternetDomainName child(String leftParts) {
-    return from(checkNotNull(leftParts) + "." + name);
+    return from(Objects.requireNonNull(leftParts) + "." + name);
   }
 
   /**
@@ -579,8 +560,6 @@ public final class InternetDomainName {
    *   domainName = DEFAULT_DOMAIN;
    * }
    * }</pre>
-   *
-   * @since 8.0 (previously named {@code isValidLenient})
    */
   public static boolean isValid(String name) {
     try {
@@ -597,10 +576,10 @@ public final class InternetDomainName {
    */
   private static boolean matchesWildcardSuffixType(
       Optional<PublicSuffixType> desiredType, String domain) {
-    List<String> pieces = DOT_SPLITTER.limit(2).splitToList(domain);
+    List<String> pieces = new ArrayList<>(Arrays.asList(domain.split("\\.", 2)));
     return pieces.size() == 2
         && matchesType(
-            desiredType, Optional.fromNullable(PublicSuffixPatterns.UNDER.get(pieces.get(1))));
+            desiredType, Optional.ofNullable(PublicSuffixPatterns.UNDER.get(pieces.get(1))));
   }
 
   /**
